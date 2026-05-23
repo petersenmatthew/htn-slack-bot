@@ -16,6 +16,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@openrouter/sdk": "^0.12.35",
     "@slack/bolt": "^4.6.0",
     "dotenv": "^16.4.7"
   },

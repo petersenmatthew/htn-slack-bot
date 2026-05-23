@@ -1,11 +1,11 @@
 # Slack Recap Bot
 
-An MVP Slack recap bot built with Slack Bolt, TypeScript, and Socket Mode.
+An MVP Slack recap bot built with Slack Bolt, TypeScript, Socket Mode, and OpenRouter.
 
-This first version intentionally does not include OpenAI, summarization, or a database. Its only success condition is that typing `/recap` in Slack returns:
+Typing `/recap` in Slack asks the bot to fetch recent channel messages and summarize them with OpenRouter. You can optionally pass a message count:
 
 ```text
-✅ Recap bot is connected and working.
+/recap 75
 ```
 
 ## Setup
@@ -28,7 +28,11 @@ Fill in `.env`:
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_SIGNING_SECRET=your-signing-secret
 SLACK_APP_TOKEN=xapp-your-app-level-token
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=openrouter/free
 ```
+
+`OPENROUTER_MODEL` is optional. If omitted, the bot uses OpenRouter's free router: `openrouter/free`.
 
 ## Run Locally
 
@@ -77,6 +81,8 @@ Go to **OAuth & Permissions** and add these bot token scopes:
 ```text
 commands
 chat:write
+channels:history
+groups:history
 ```
 
 Install the app to your workspace, then copy the bot user OAuth token into `.env` as `SLACK_BOT_TOKEN`.
@@ -91,7 +97,7 @@ Go to **Basic Information** and copy the app signing secret into `.env` as `SLAC
 2. Click **Create New Command**.
 3. Set **Command** to `/recap`.
 4. For **Request URL**, enter any valid placeholder URL, such as `https://example.com/slack/events`.
-5. Add a short description, such as `Check whether the recap bot is connected`.
+5. Add a short description, such as `Summarize recent channel activity`.
 6. Save the command.
 7. Reinstall the Slack app if Slack prompts you to do so.
 
@@ -102,7 +108,7 @@ In Socket Mode, Slack Bolt receives the command over the WebSocket connection, s
 ```text
 src/app.ts              # Creates and starts the Slack Bolt app.
 src/commands/recap.ts   # Handles the /recap slash command.
-src/services/           # Reserved for future service modules.
+src/services/           # Calls OpenRouter for recap summaries.
 src/utils/env.ts        # Validates required environment variables.
 src/types/              # Reserved for shared TypeScript types.
 .env.example            # Documents required local environment variables.

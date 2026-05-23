@@ -1,13 +1,22 @@
 const requiredEnvVars = [
   "SLACK_BOT_TOKEN",
   "SLACK_SIGNING_SECRET",
-  "SLACK_APP_TOKEN"
+  "SLACK_APP_TOKEN",
+  "OPENROUTER_API_KEY"
 ] as const;
 
-type Env = Record<(typeof requiredEnvVars)[number], string>;
+type RequiredEnv = Record<(typeof requiredEnvVars)[number], string>;
+
+type Env = RequiredEnv & {
+  OPENROUTER_MODEL: string;
+};
+
+const defaultEnv = {
+  OPENROUTER_MODEL: "openrouter/free"
+} as const;
 
 // Keep environment validation in one place so startup fails with a useful
-// message when a required Slack credential is missing.
+// message when a required credential is missing.
 const loadEnv = (): Env => {
   const missing = requiredEnvVars.filter((key) => !process.env[key]);
 
@@ -15,10 +24,15 @@ const loadEnv = (): Env => {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
 
-  return requiredEnvVars.reduce((values, key) => {
-    values[key] = process.env[key] as string;
-    return values;
-  }, {} as Env);
+  const values = requiredEnvVars.reduce((envValues, key) => {
+    envValues[key] = process.env[key] as string;
+    return envValues;
+  }, {} as RequiredEnv);
+
+  return {
+    ...values,
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || defaultEnv.OPENROUTER_MODEL
+  };
 };
 
 export const env = loadEnv();
