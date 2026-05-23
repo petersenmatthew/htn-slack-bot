@@ -5,6 +5,7 @@
   "main": "dist/app.js",
   "scripts": {
     "dev": "tsx watch src/app.ts",
+    "google:auth": "tsx src/scripts/google-oauth.ts",
     "build": "tsc",
     "start": "node dist/app.js"
   },
@@ -18,7 +19,8 @@
   "dependencies": {
     "@openrouter/sdk": "^0.12.35",
     "@slack/bolt": "^4.6.0",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "googleapis": "^172.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
