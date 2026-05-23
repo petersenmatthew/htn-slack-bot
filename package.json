@@ -1,0 +1,30 @@
+{
+  "name": "slack-recap-bot",
+  "version": "0.1.0",
+  "description": "MVP Slack recap bot built with Slack Bolt and TypeScript.",
+  "main": "dist/app.js",
+  "scripts": {
+    "dev": "tsx watch src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js"
+  },
+  "keywords": [
+    "slack",
+    "bolt",
+    "typescript",
+    "bot"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@slack/bolt": "^4.6.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
