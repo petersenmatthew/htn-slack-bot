@@ -42,6 +42,18 @@ const formatTranscript = (messages: SlackHistoryMessage[]): string => {
     .join("\n");
 };
 
+const trimWrappingAsterisks = (text: string): string => text.replace(/^\*+|\*+$/g, "");
+
+const formatRecapForSlack = (recap: string): string => {
+  return recap
+    .trim()
+    .replace(/\*\*([^*\n]+)\*\*/g, "*$1*")
+    .replace(/^#{1,6}\s+(.+)$/gm, (_, heading: string) => `*${trimWrappingAsterisks(heading.trim())}*`)
+    .replace(/^\s*\*\s+/gm, "- ")
+    .replace(/^\s*\d+\.\s+/gm, "- ")
+    .replace(/\n{3,}/g, "\n\n");
+};
+
 // Slash command handlers live in this folder so future commands can be added
 // without crowding the main app bootstrap file.
 export const registerRecapCommand = (app: App) => {
@@ -76,9 +88,19 @@ export const registerRecapCommand = (app: App) => {
         channelName: command.channel_name,
         transcript
       });
+      const slackRecap = formatRecapForSlack(recap);
 
       await respond({
-        text: `*Recap for #${command.channel_name}*\n${recap}`,
+        text: `*Recap for #${command.channel_name}*\n${slackRecap}`,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `*Recap for #${command.channel_name}*\n${slackRecap}`
+            }
+          }
+        ],
         response_type: "ephemeral"
       });
     } catch (error) {
