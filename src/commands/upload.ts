@@ -3,10 +3,8 @@ import type { Logger } from "@slack/logger";
 import type { AllMessageEvents, GenericMessageEvent } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 
-import { listRecords } from "../services/blackmail-store.js";
 import { clearPendingUpload, hasPendingUpload, markPendingUpload } from "../services/pending-upload.js";
 import { saveUploadFromFile } from "../services/upload-photo.js";
-import type { BlackmailRecord } from "../types/blackmail.js";
 import { isBotDirectMessage, isDirectMessageChannel } from "../utils/slack-channel.js";
 
 type SlackMessageFile = NonNullable<GenericMessageEvent["files"]>[number];
@@ -27,38 +25,8 @@ const AWAITING_PHOTO_MESSAGE = [
 const USAGE = [
   "Run these in a DM with the bot only:",
   "1. `/upload`",
-  "2. Send your photo in the chat right after",
-  "",
-  "*`/upload status`* — see who has uploaded this year"
+  "2. Send your photo in the chat right after"
 ].join("\n");
-
-const formatDate = (iso: string | null): string => {
-  if (!iso) {
-    return "—";
-  }
-
-  return new Date(iso).toLocaleDateString("en-CA", {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
-};
-
-const formatStatusTable = (records: BlackmailRecord[]): string => {
-  if (records.length === 0) {
-    return "_No uploads yet. Be the first to add your blackmail photo._";
-  }
-
-  const lines = records.map((record) => {
-    const uploaded = record.dateUploaded ? "✅" : "⏳";
-    const released = record.dateReleased ? formatDate(record.dateReleased) : "—";
-    const photo = record.blackmailPhoto ? `<${record.blackmailPhoto}|view>` : "—";
-
-    return `${uploaded} *${record.name}* · ${record.role} · uploaded ${formatDate(record.dateUploaded)} · photo ${photo} · released ${released}`;
-  });
-
-  return lines.join("\n");
-};
 
 const isImageFile = (file: SlackMessageFile): boolean => {
   if (file.mimetype?.startsWith("image/")) {
@@ -72,14 +40,6 @@ const isImageFile = (file: SlackMessageFile): boolean => {
 const getImageFileId = (files: GenericMessageEvent["files"]): string | null => {
   const image = files?.find(isImageFile);
   return image?.id ?? null;
-};
-
-const handleStatus = async (respond: SlackCommandMiddlewareArgs["respond"]) => {
-  const records = await listRecords();
-
-  await respond({
-    text: `*Blackmail upload tracker*\n${formatStatusTable(records)}`
-  });
 };
 
 const startAwaitingPhoto = async (
@@ -206,11 +166,6 @@ export const registerUploadCommand = (app: App) => {
           response_type: "ephemeral",
           text: DM_ONLY_MESSAGE
         });
-        return;
-      }
-
-      if (command.text.trim().toLowerCase() === "status") {
-        await handleStatus(respond);
         return;
       }
 
