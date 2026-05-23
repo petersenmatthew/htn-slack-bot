@@ -78,18 +78,12 @@ const isHumanMessage = (event: AllMessageEvents): event is AllMessageEvents & { 
   return subtype === undefined;
 };
 
-const replyToUser = async (
+const replyToChannel = async (
   client: WebClient,
   channel: string,
-  user: string,
   text: string
 ): Promise<void> => {
-  if (channel.startsWith("D")) {
-    await client.chat.postMessage({ channel, text });
-    return;
-  }
-
-  await client.chat.postEphemeral({ channel, user, text });
+  await client.chat.postMessage({ channel, text });
 };
 
 const runPhotoSlides = async ({
@@ -135,7 +129,7 @@ export const registerPhotoSlidesCommand = (app: App) => {
       if (command.text.trim().toLowerCase() === "cancel") {
         clearPendingPhotoSlides(command.channel_id, command.user_id);
         await respond({
-          response_type: "ephemeral",
+          response_type: "in_channel",
           text: "Cancelled the photo slide setup."
         });
         return;
@@ -144,7 +138,7 @@ export const registerPhotoSlidesCommand = (app: App) => {
       if (command.text.trim() === "") {
         startPendingPhotoSlides(command.channel_id, command.user_id);
         await respond({
-          response_type: "ephemeral",
+          response_type: "in_channel",
           text: START_MESSAGE
         });
         return;
@@ -154,7 +148,7 @@ export const registerPhotoSlidesCommand = (app: App) => {
 
       if (!parsed) {
         await respond({
-          response_type: "ephemeral",
+          response_type: "in_channel",
           text: USAGE
         });
         return;
@@ -165,7 +159,7 @@ export const registerPhotoSlidesCommand = (app: App) => {
         parsed,
         reply: (text) =>
           respond({
-            response_type: "ephemeral",
+            response_type: "in_channel",
             text
           }).then(() => undefined)
       });
@@ -173,7 +167,7 @@ export const registerPhotoSlidesCommand = (app: App) => {
       logger.error(`Failed to handle /photoslides command: ${getSafeErrorMessage(error)}`);
 
       await respond({
-        response_type: "ephemeral",
+        response_type: "in_channel",
         text: "Sorry, I could not update the photo slide. Check the bot logs for details."
       });
     }
@@ -191,7 +185,7 @@ export const registerPhotoSlidesCommand = (app: App) => {
     }
 
     const text = getMessageText(event);
-    const reply = (message: string) => replyToUser(client, event.channel, event.user, message);
+    const reply = (message: string) => replyToChannel(client, event.channel, message);
 
     try {
       if (text.toLowerCase() === "cancel") {
