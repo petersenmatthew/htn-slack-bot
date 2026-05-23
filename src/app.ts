@@ -6,6 +6,7 @@ import { registerBlackmailCommand } from "./commands/blackmail.js";
 import { registerPhotoSlidesCommand } from "./commands/photoslides.js";
 import { registerRecapCommand } from "./commands/recap.js";
 import { registerUploadCommand } from "./commands/upload.js";
+import { registerVoteCommand } from "./commands/vote.js";
 import { env } from "./utils/env.js";
 
 // This file is the bot's entry point: it creates the Bolt app, wires command
@@ -22,6 +23,7 @@ registerRecapCommand(app);
 registerPhotoSlidesCommand(app);
 registerUploadCommand(app);
 registerBlackmailCommand(app);
+registerVoteCommand(app);
 
 app.error(async (error) => {
   console.error("Slack app error:", error);

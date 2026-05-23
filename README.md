@@ -170,6 +170,26 @@ If someone runs `/upload` in a channel, the bot replies with a private ephemeral
 
 Uploads are stored locally in `data/blackmail.json` (gitignored). Each record has: name, role, `dateUploaded`, `blackmailPhoto` URL, and optional `dateReleased`.
 
+#### `/vote`
+
+1. Create another slash command named `/vote`.
+2. Use the same placeholder Request URL as `/recap`.
+3. Description example: `Vote against someone with a reason`.
+4. Optional usage hint: `@user @user2 reason here`.
+
+**Usage** (any channel or DM)
+
+```text
+/vote @alex @sam forgot to bring snacks
+```
+
+- Mention one or more users, then the reason (everything after the last mention).
+- Each mention creates a separate vote record with the same reason.
+- The same person can accumulate many votes across different `/vote` calls and reasons.
+- The bot posts a short confirmation in the channel (who voted, who was targeted, reason).
+
+Votes are stored locally in `data/votes.json` (gitignored). See `data/votes.example.json` for the shape.
+
 ## Google Slides Photo Automation
 
 Run `/photoslides` with no extra text to start a guided setup. The bot will ask for:
@@ -229,9 +249,11 @@ src/app.ts                       # Creates and starts the Slack Bolt app.
 src/commands/photoslides.ts      # Handles the /photoslides slash command.
 src/commands/recap.ts            # Handles the /recap slash command.
 src/commands/upload.ts           # Handles the /upload slash command.
+src/commands/vote.ts             # Handles the /vote slash command.
 src/services/google-photo-slides.ts # Updates Google Drive and Slides.
 src/services/openrouter.ts       # Calls OpenRouter for recap summaries.
 src/services/slack-thread-photos.ts # Reads Slack thread photos.
+src/services/vote-store.ts       # JSON persistence for vote records.
 src/services/blackmail-store.ts  # JSON persistence for upload records.
 src/services/pending-upload.ts   # In-memory upload session state.
 src/services/slack-user.ts       # Slack user display name helper.
@@ -239,7 +261,10 @@ src/services/upload-photo.ts     # Saves uploaded photos to the store.
 src/utils/env.ts                 # Validates required environment variables.
 src/utils/slack-channel.ts       # DM channel detection helper.
 src/types/blackmail.ts           # Upload record types.
+src/types/votes.ts               # Vote record types.
 data/blackmail.json              # Local upload tracker (created at runtime).
+data/votes.json                  # Local vote log (created at runtime).
+data/votes.example.json          # Example vote store shape.
 .env.example                     # Documents required local environment variables.
 .gitignore                       # Keeps dependencies, secrets, and build output out of git.
 package.json                     # Defines dependencies and npm scripts.
