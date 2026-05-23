@@ -3,6 +3,7 @@ import "dotenv/config";
 import { App, LogLevel } from "@slack/bolt";
 
 import { registerBlackmailCommand } from "./commands/blackmail.js";
+import { registerPhotoSlidesCommand } from "./commands/photoslides.js";
 import { registerRecapCommand } from "./commands/recap.js";
 import { registerUploadCommand } from "./commands/upload.js";
 import { env } from "./utils/env.js";
@@ -14,19 +15,11 @@ const app = new App({
   signingSecret: env.SLACK_SIGNING_SECRET,
   socketMode: true,
   appToken: env.SLACK_APP_TOKEN,
-  logLevel: LogLevel.DEBUG
-});
-
-// DEBUG: catch ALL events to see what Slack is sending
-app.use(async ({ body, next, logger }) => {
-  logger.info(`[MIDDLEWARE] event type=${(body as any).event?.type} subtype=${(body as any).event?.subtype} command=${(body as any).command}`);
-  if ((body as any).event?.files) {
-    logger.info(`[MIDDLEWARE] files=${JSON.stringify((body as any).event.files.map((f: any) => ({ id: f.id, mimetype: f.mimetype, filetype: f.filetype })))}`);
-  }
-  await next();
+  logLevel: LogLevel.INFO
 });
 
 registerRecapCommand(app);
+registerPhotoSlidesCommand(app);
 registerUploadCommand(app);
 registerBlackmailCommand(app);
 

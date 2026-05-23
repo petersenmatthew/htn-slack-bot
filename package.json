@@ -5,6 +5,7 @@
   "main": "dist/app.js",
   "scripts": {
     "dev": "tsx watch src/app.ts",
+    "google:auth": "tsx src/scripts/google-oauth.ts",
     "build": "tsc",
     "start": "node dist/app.js"
   },
@@ -21,7 +22,8 @@
     "@slack/logger": "^4.0.1",
     "@slack/types": "^2.21.1",
     "@slack/web-api": "^7.16.0",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "googleapis": "^172.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
