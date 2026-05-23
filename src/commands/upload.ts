@@ -1,15 +1,15 @@
 import type { App, SlackCommandMiddlewareArgs } from "@slack/bolt";
-import type { GenericMessageEvent } from "@slack/types";
-
-type SlackMessageFile = NonNullable<GenericMessageEvent["files"]>[number];
 import type { Logger } from "@slack/logger";
+import type { AllMessageEvents, GenericMessageEvent } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 
 import { listRecords } from "../services/blackmail-store.js";
 import { clearPendingUpload, hasPendingUpload, markPendingUpload } from "../services/pending-upload.js";
 import { saveUploadFromFile } from "../services/upload-photo.js";
 import type { BlackmailRecord } from "../types/blackmail.js";
-import { isDirectMessageChannel } from "../utils/slack-channel.js";
+import { isBotDirectMessage, isDirectMessageChannel } from "../utils/slack-channel.js";
+
+type SlackMessageFile = NonNullable<GenericMessageEvent["files"]>[number];
 
 type CommandWithFiles = SlackCommandMiddlewareArgs["command"] & {
   files?: Array<{ id: string }>;
@@ -84,9 +84,11 @@ const handleStatus = async (respond: SlackCommandMiddlewareArgs["respond"]) => {
 
 const startAwaitingPhoto = async (
   userId: string,
-  respond: SlackCommandMiddlewareArgs["respond"]
+  respond: SlackCommandMiddlewareArgs["respond"],
+  logger: Logger
 ) => {
   markPendingUpload(userId);
+  logger.info(`Awaiting upload photo from user ${userId}`);
 
   await respond({
     text: `${AWAITING_PHOTO_MESSAGE}\n\n${USAGE}`
@@ -128,7 +130,25 @@ const handleSlashUpload = async ({
     return;
   }
 
-  await startAwaitingPhoto(command.user_id, respond);
+  await startAwaitingPhoto(command.user_id, respond, logger);
+};
+
+const getMessageFiles = (event: AllMessageEvents): GenericMessageEvent["files"] => {
+  if (!("files" in event)) {
+    return undefined;
+  }
+
+  return event.files;
+};
+
+const isUploadableMessage = (event: AllMessageEvents): boolean => {
+  const subtype = "subtype" in event ? event.subtype : undefined;
+
+  if (subtype && subtype !== "file_share") {
+    return false;
+  }
+
+  return Boolean(getImageFileId(getMessageFiles(event)));
 };
 
 const handleDmPhotoMessage = async ({
@@ -137,12 +157,19 @@ const handleDmPhotoMessage = async ({
   say,
   logger
 }: {
-  event: GenericMessageEvent;
+  event: AllMessageEvents;
   client: WebClient;
   say: (text: string) => Promise<unknown>;
   logger: Logger;
 }) => {
-  if (event.subtype || event.bot_id || !event.user || !isDirectMessageChannel(event.channel)) {
+  if (!("user" in event) || !event.user || ("bot_id" in event && event.bot_id)) {
+    return;
+  }
+
+  const channel = event.channel;
+  const channelType = "channel_type" in event ? event.channel_type : undefined;
+
+  if (!isBotDirectMessage(channel, channelType)) {
     return;
   }
 
@@ -150,10 +177,19 @@ const handleDmPhotoMessage = async ({
     return;
   }
 
-  const fileId = getImageFileId(event.files);
+  const subtype = "subtype" in event ? event.subtype : "none";
+  logger.info(`Upload DM message: subtype=${subtype} user=${event.user}`);
+
+  if (!isUploadableMessage(event)) {
+    if (!("subtype" in event) || event.subtype === undefined) {
+      await say("Still waiting for your photo — send an image file in this DM.");
+    }
+    return;
+  }
+
+  const fileId = getImageFileId(getMessageFiles(event));
 
   if (!fileId) {
-    await say("Still waiting for your photo — send an image file in this DM.");
     return;
   }
 
@@ -201,23 +237,26 @@ export const registerUploadCommand = (app: App) => {
     }
   });
 
-  app.message(async ({ message, client, say, logger }) => {
-    if (message.subtype || !("user" in message) || !message.user || ("bot_id" in message && message.bot_id)) {
-      return;
-    }
-
+  // Slack sends uploaded images as `file_share` messages; app.message() ignores those.
+  app.event("message", async ({ event, client, say, logger }) => {
     try {
       await handleDmPhotoMessage({
-        event: message as GenericMessageEvent,
+        event,
         client,
         say: (text) => say(text),
         logger
       });
     } catch (error) {
       logger.error("Failed to handle upload photo message", error);
-      clearPendingUpload(message.user);
 
-      if ("channel" in message && isDirectMessageChannel(message.channel)) {
+      if ("user" in event && event.user) {
+        clearPendingUpload(event.user);
+      }
+
+      const channel = event.channel;
+      const channelType = "channel_type" in event ? event.channel_type : undefined;
+
+      if (isBotDirectMessage(channel, channelType)) {
         await say("Something went wrong saving your upload. Run `/upload` and try again.");
       }
     }
