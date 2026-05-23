@@ -239,6 +239,11 @@ export const registerUploadCommand = (app: App) => {
 
   // Slack sends uploaded images as `file_share` messages; app.message() ignores those.
   app.event("message", async ({ event, client, say, logger }) => {
+    const subtype = "subtype" in event ? event.subtype : "none";
+    const hasFiles = "files" in event && Array.isArray(event.files);
+    const channelType = "channel_type" in event ? event.channel_type : "unknown";
+    logger.info(`[DEBUG] message event: subtype=${subtype} hasFiles=${hasFiles} channel=${event.channel} channelType=${channelType} user=${"user" in event ? event.user : "N/A"}`);
+
     try {
       await handleDmPhotoMessage({
         event,
