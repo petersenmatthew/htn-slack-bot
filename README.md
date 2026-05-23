@@ -8,6 +8,14 @@ Typing `/recap` in Slack asks the bot to fetch recent channel messages and summa
 /recap 75
 ```
 
+Typing `/photoslides` with a Slack thread link and Google Slides link asks the bot to collect PNG, JPEG, and GIF images from that thread and place them into the chosen deck:
+
+```text
+/photoslides https://your-workspace.slack.com/archives/C123/p1716400000000000?thread_ts=1716400000.000000&cid=C123 https://docs.google.com/presentation/d/SLIDES_ID/edit slide=3
+```
+
+`slide=N` is required so the command decides which slide to replace each time.
+
 ## Setup
 
 Install dependencies:
@@ -30,9 +38,17 @@ SLACK_SIGNING_SECRET=your-signing-secret
 SLACK_APP_TOKEN=xapp-your-app-level-token
 OPENROUTER_API_KEY=your-openrouter-api-key
 OPENROUTER_MODEL=openrouter/free
+GOOGLE_DRIVE_UPLOAD_FOLDER_ID=your-google-drive-folder-id
+GOOGLE_AUTH_MODE=oauth
+GOOGLE_OAUTH_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-oauth-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost
+GOOGLE_OAUTH_REFRESH_TOKEN=your-generated-refresh-token
 ```
 
 `OPENROUTER_MODEL` is optional. If omitted, the bot uses OpenRouter's free router: `openrouter/free`.
+
+The Google variables are used by `/photoslides`. OAuth is recommended because service accounts cannot upload files into normal My Drive storage unless you use Shared Drives.
 
 ## Run Locally
 
@@ -101,6 +117,15 @@ message.im
 
 Save and reinstall the app if prompted. This lets the bot receive the photo you send after `/upload`.
 
+If you want to use the guided `/photoslides` flow in channels, also add:
+
+```text
+message.channels
+message.groups
+```
+
+These let the bot read your follow-up answers after `/photoslides`.
+
 ### 3. Copy Signing Secret
 
 Go to **Basic Information** and copy the app signing secret into `.env` as `SLACK_SIGNING_SECRET`.
@@ -124,6 +149,13 @@ In Socket Mode, Slack Bolt receives the command over the WebSocket connection, s
 1. Create another slash command named `/upload`.
 2. Use the same placeholder Request URL as `/recap`.
 3. Description example: `Upload your yearly embarrassing photo`.
+
+#### `/photoslides`
+
+1. Create another slash command named `/photoslides`.
+2. Use the same placeholder Request URL as `/recap`.
+3. Description example: `Populate a Google Slides photo slide from a Slack thread`.
+4. Reinstall the Slack app if Slack prompts you to do so.
 
 **Usage** (DM with the bot only — not in channels)
 
@@ -158,14 +190,69 @@ Uploads are stored locally in `data/blackmail.json` (gitignored). Each record ha
 
 Votes are stored locally in `data/votes.json` (gitignored). See `data/votes.example.json` for the shape.
 
+## Google Slides Photo Automation
+
+Run `/photoslides` with no extra text to start a guided setup. The bot will ask for:
+
+1. Slack thread link or bare thread timestamp.
+2. Google Slides deck link or presentation ID.
+3. Slide number.
+
+You can also provide everything in one command. If you paste a copied Slack reply link, the bot uses the `thread_ts` query parameter so it still resolves to the parent thread.
+
+```text
+/photoslides <thread-link-or-thread-ts> <google-slides-link-or-id> slide=N
+```
+
+You can also pass the deck as a named argument:
+
+```text
+/photoslides <thread-link-or-thread-ts> deck=<google-slides-link-or-id> slide=N
+```
+
+The command:
+
+1. Fetches the parent message and replies with `conversations.replies`.
+2. Reads file metadata with `files.info`.
+3. Downloads supported private Slack images using the bot token.
+4. Temporarily uploads each image to Google Drive and makes it link-readable.
+5. Deletes previously generated `weekly_photo_` elements on the target slide.
+6. Inserts the new photo grid into the existing slide.
+7. Deletes the temporary Drive files after Slides has copied the images.
+
+Supported image types are PNG, JPEG, and GIF. HEIC, WebP, videos, and other file types are skipped and reported in the Slack response.
+
+### Google Setup
+
+OAuth setup is the easiest path for normal Google Drive folders:
+
+1. Create or choose a Google Cloud project.
+2. Enable the Google Slides API and Google Drive API.
+3. Go to **APIs & Services** -> **OAuth consent screen** and configure the app for your own account.
+4. Add yourself as a test user if the app is in testing mode.
+5. Go to **Credentials** -> **Create Credentials** -> **OAuth client ID**.
+6. Choose **Desktop app**.
+7. Copy the client ID and client secret into `.env`.
+8. Set `GOOGLE_OAUTH_REDIRECT_URI=http://localhost`.
+9. Run `npm run google:auth`.
+10. Open the printed URL, approve access, and paste the returned code or full redirected URL into the terminal.
+11. Copy the printed `GOOGLE_OAUTH_REFRESH_TOKEN=...` line into `.env`.
+12. Create or choose a Drive folder for temporary uploads and copy its folder ID into `GOOGLE_DRIVE_UPLOAD_FOLDER_ID`.
+13. Paste the Google Slides deck link directly into `/photoslides` whenever you run the command.
+
+If you use service-account auth instead, use `GOOGLE_AUTH_MODE=service_account` and `GOOGLE_SERVICE_ACCOUNT_KEY_FILE=...`. That path generally needs a Google Shared Drive because service accounts do not have normal My Drive storage quota.
+
 ## Project Structure
 
 ```text
 src/app.ts                       # Creates and starts the Slack Bolt app.
+src/commands/photoslides.ts      # Handles the /photoslides slash command.
 src/commands/recap.ts            # Handles the /recap slash command.
 src/commands/upload.ts           # Handles the /upload slash command.
 src/commands/vote.ts             # Handles the /vote slash command.
+src/services/google-photo-slides.ts # Updates Google Drive and Slides.
 src/services/openrouter.ts       # Calls OpenRouter for recap summaries.
+src/services/slack-thread-photos.ts # Reads Slack thread photos.
 src/services/vote-store.ts       # JSON persistence for vote records.
 src/services/blackmail-store.ts  # JSON persistence for upload records.
 src/services/pending-upload.ts   # In-memory upload session state.

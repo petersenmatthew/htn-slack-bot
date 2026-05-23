@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { App, LogLevel } from "@slack/bolt";
 
+import { registerPhotoSlidesCommand } from "./commands/photoslides.js";
 import { registerRecapCommand } from "./commands/recap.js";
 import { registerUploadCommand } from "./commands/upload.js";
 import { registerVoteCommand } from "./commands/vote.js";
@@ -18,6 +19,7 @@ const app = new App({
 });
 
 registerRecapCommand(app);
+registerPhotoSlidesCommand(app);
 registerUploadCommand(app);
 registerVoteCommand(app);
 
