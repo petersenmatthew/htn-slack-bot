@@ -206,6 +206,130 @@ const createImageRequest = (
   };
 };
 
+/**
+ * Insert a single photo (smaller, top-aligned) on the *last* slide of the
+ * given presentation, with vote reasons listed below in white Arial 12pt.
+ */
+export const addImageToLastSlide = async ({
+  photo,
+  presentationId,
+  voteReasons
+}: {
+  photo: SlackThreadPhoto;
+  presentationId: string;
+  voteReasons: string[];
+}): Promise<{ slideNumber: number }> => {
+  const { drive, slides } = getGoogleClients();
+  const presentation = await getPresentation(slides, presentationId);
+  const slideCount = presentation.slides?.length ?? 0;
+
+  if (slideCount === 0) {
+    throw new Error("The presentation has no slides.");
+  }
+
+  const lastSlide = presentation.slides![slideCount - 1];
+  const pageSize = getPageSize(presentation);
+
+  const uploaded = await uploadDriveImage(drive, photo);
+
+  try {
+    const runId = Date.now().toString(36);
+    const imageObjectId = `${GENERATED_OBJECT_PREFIX}blackmail_${runId}`;
+    const textObjectId = `${GENERATED_OBJECT_PREFIX}blackmail_text_${runId}`;
+
+    // Image: ~40% of slide height, centered horizontally, top-aligned with a small margin
+    const margin = pageSize.height * 0.04;
+    const imageHeight = pageSize.height * 0.60;
+    const imageWidth = imageHeight; // square crop area
+    const imageX = (pageSize.width - imageWidth) / 2;
+
+    // Text box: below the image, full width with side margins
+    const textMargin = pageSize.width * 0.08;
+    const textGap = pageSize.height * 0.02;
+    const textY = margin + imageHeight + textGap;
+    const textWidth = pageSize.width - textMargin * 2;
+    const textHeight = pageSize.height - textY - margin;
+
+    const reasonsText = voteReasons.length > 0
+      ? voteReasons.map((r, i) => `${i + 1}. ${r}`).join("\n")
+      : "No reasons provided.";
+
+    const requests: slides_v1.Schema$Request[] = [
+      {
+        createImage: {
+          objectId: imageObjectId,
+          url: uploaded.publicUrl,
+          elementProperties: {
+            pageObjectId: lastSlide.objectId as string,
+            size: {
+              width: { magnitude: imageWidth, unit: EMU },
+              height: { magnitude: imageHeight, unit: EMU }
+            },
+            transform: {
+              scaleX: 1,
+              scaleY: 1,
+              translateX: imageX,
+              translateY: margin,
+              unit: EMU
+            }
+          }
+        }
+      },
+      {
+        createShape: {
+          objectId: textObjectId,
+          shapeType: "TEXT_BOX",
+          elementProperties: {
+            pageObjectId: lastSlide.objectId as string,
+            size: {
+              width: { magnitude: textWidth, unit: EMU },
+              height: { magnitude: textHeight, unit: EMU }
+            },
+            transform: {
+              scaleX: 1,
+              scaleY: 1,
+              translateX: textMargin,
+              translateY: textY,
+              unit: EMU
+            }
+          }
+        }
+      },
+      {
+        insertText: {
+          objectId: textObjectId,
+          text: reasonsText
+        }
+      },
+      {
+        updateTextStyle: {
+          objectId: textObjectId,
+          style: {
+            foregroundColor: {
+              opaqueColor: {
+                rgbColor: { red: 1, green: 1, blue: 1 }
+              }
+            },
+            fontFamily: "Source Sans Pro",
+            fontSize: { magnitude: 20, unit: "PT" }
+          },
+          textRange: { type: "ALL" },
+          fields: "foregroundColor,fontFamily,fontSize"
+        }
+      }
+    ];
+
+    await slides.presentations.batchUpdate({
+      presentationId,
+      requestBody: { requests }
+    });
+
+    return { slideNumber: slideCount };
+  } finally {
+    await deleteDriveImages(drive, [uploaded]);
+  }
+};
+
 export const populateWeeklyPhotoSlide = async ({
   photos,
   presentationId,
