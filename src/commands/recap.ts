@@ -1,14 +1,28 @@
 import type { App } from "@slack/bolt";
+import type { WebClient } from "@slack/web-api";
 
 import { summarizeRecap } from "../services/openrouter.js";
 import { env } from "../utils/env.js";
 
 const DEFAULT_MESSAGE_LIMIT = 40;
+const MAX_THREAD_PARENTS = 10;
+const MAX_THREAD_REPLIES_PER_PARENT = 25;
 
 type SlackHistoryMessage = {
   text?: string;
   user?: string;
   subtype?: string;
+  ts?: string;
+  thread_ts?: string;
+  reply_count?: number;
+};
+
+type ThreadedSlackHistoryMessage = SlackHistoryMessage & {
+  threadReplies?: SlackHistoryMessage[];
+};
+
+type SlackLogger = {
+  warn: (...args: unknown[]) => void;
 };
 
 const getMessageLimit = (text: string): number => {
@@ -21,7 +35,13 @@ const getMessageLimit = (text: string): number => {
   return Math.min(Math.max(requestedLimit, 5), 100);
 };
 
-const formatMessage = (message: SlackHistoryMessage): string | null => {
+const getMessageTimestamp = (message: SlackHistoryMessage): string | undefined => message.ts ?? message.thread_ts;
+
+const compareByTimestamp = (a: SlackHistoryMessage, b: SlackHistoryMessage): number => {
+  return Number.parseFloat(getMessageTimestamp(a) ?? "0") - Number.parseFloat(getMessageTimestamp(b) ?? "0");
+};
+
+const formatMessage = (message: SlackHistoryMessage, prefix = ""): string | null => {
   const text = message.text?.trim();
 
   if (!text || message.subtype === "bot_message") {
@@ -30,16 +50,87 @@ const formatMessage = (message: SlackHistoryMessage): string | null => {
 
   const author = message.user ? `<@${message.user}>` : "unknown";
 
-  return `${author}: ${text}`;
+  return `${prefix}${author}: ${text}`;
 };
 
-const formatTranscript = (messages: SlackHistoryMessage[]): string => {
-  return messages
-    .slice()
-    .reverse()
-    .map(formatMessage)
-    .filter((message): message is string => Boolean(message))
-    .join("\n");
+const fetchThreadReplies = async (
+  client: WebClient,
+  channel: string,
+  messages: SlackHistoryMessage[],
+  logger: SlackLogger
+): Promise<ThreadedSlackHistoryMessage[]> => {
+  const topLevelTimestamps = new Set(
+    messages.map(getMessageTimestamp).filter((timestamp): timestamp is string => Boolean(timestamp))
+  );
+  const threadParents = messages
+    .filter((message) => (message.reply_count ?? 0) > 0 && Boolean(getMessageTimestamp(message)))
+    .slice(0, MAX_THREAD_PARENTS);
+  const repliesByThreadTs = new Map<string, SlackHistoryMessage[]>();
+
+  await Promise.all(
+    threadParents.map(async (message) => {
+      const threadTs = getMessageTimestamp(message);
+
+      if (!threadTs) {
+        return;
+      }
+
+      try {
+        const replies = await client.conversations.replies({
+          channel,
+          ts: threadTs,
+          limit: MAX_THREAD_REPLIES_PER_PARENT + 1
+        });
+        const threadReplies = ((replies.messages ?? []) as SlackHistoryMessage[])
+          .filter((reply) => {
+            const replyTs = getMessageTimestamp(reply);
+
+            return Boolean(replyTs && replyTs !== threadTs && !topLevelTimestamps.has(replyTs));
+          })
+          .sort(compareByTimestamp)
+          .slice(0, MAX_THREAD_REPLIES_PER_PARENT);
+
+        repliesByThreadTs.set(threadTs, threadReplies);
+      } catch (error) {
+        logger.warn("Failed to fetch Slack thread replies for recap", { threadTs, error });
+      }
+    })
+  );
+
+  return messages.map((message) => {
+    const threadTs = getMessageTimestamp(message);
+
+    if (!threadTs) {
+      return message;
+    }
+
+    return {
+      ...message,
+      threadReplies: repliesByThreadTs.get(threadTs) ?? []
+    };
+  });
+};
+
+const formatTranscript = (messages: ThreadedSlackHistoryMessage[]): string => {
+  const transcriptLines: string[] = [];
+
+  for (const message of messages.slice().reverse()) {
+    const formattedMessage = formatMessage(message);
+
+    if (formattedMessage) {
+      transcriptLines.push(formattedMessage);
+    }
+
+    for (const reply of message.threadReplies ?? []) {
+      const formattedReply = formatMessage(reply, "  thread reply - ");
+
+      if (formattedReply) {
+        transcriptLines.push(formattedReply);
+      }
+    }
+  }
+
+  return transcriptLines.join("\n");
 };
 
 const trimWrappingAsterisks = (text: string): string => text.replace(/^\*+|\*+$/g, "");
@@ -72,7 +163,13 @@ export const registerRecapCommand = (app: App) => {
         limit
       });
 
-      const transcript = formatTranscript(history.messages ?? []);
+      const messagesWithThreadReplies = await fetchThreadReplies(
+        client,
+        command.channel_id,
+        (history.messages ?? []) as SlackHistoryMessage[],
+        logger
+      );
+      const transcript = formatTranscript(messagesWithThreadReplies);
 
       if (!transcript) {
         await respond({
