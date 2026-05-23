@@ -1,6 +1,6 @@
 # Slack Recap Bot
 
-An MVP Slack recap bot built with Slack Bolt, TypeScript, Socket Mode, and OpenRouter.
+A Slack bot to help recap weekly events, write photos to All Hands slides, includes a vote for weekly mvp feature, written with TypeScript, Socket Mode, and OpenRouter.
 
 Typing `/recap` in Slack asks the bot to fetch recent channel messages and summarize them with OpenRouter. You can optionally pass a message count:
 
@@ -15,6 +15,16 @@ Typing `/photoslides` with a Slack thread link and Google Slides link asks the b
 ```
 
 `slide=N` is required so the command decides which slide to replace each time.
+
+Typing '/upload' in a DM with the bot, then sending a png will set the current users' mvp photo to be used on the slides.
+
+Typing `/vote @username [reason]` will place a vote for a user you believe should be the weekly mvp along with a reason.
+
+Typing `/blackmail` with a Google Slides link asks the bot to query the most voted mvp and paste their corresponding uploaded photo and reasons for being voted to the slides:
+
+```text
+/photoslides https://docs.google.com/presentation/d/SLIDES_ID/edit slide=3
+```
 
 ## Setup
 
