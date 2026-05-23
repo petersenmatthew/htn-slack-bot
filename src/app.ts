@@ -3,6 +3,7 @@ import "dotenv/config";
 import { App, LogLevel } from "@slack/bolt";
 
 import { registerRecapCommand } from "./commands/recap.js";
+import { registerUploadCommand } from "./commands/upload.js";
 import { env } from "./utils/env.js";
 
 // This file is the bot's entry point: it creates the Bolt app, wires command
@@ -16,6 +17,7 @@ const app = new App({
 });
 
 registerRecapCommand(app);
+registerUploadCommand(app);
 
 app.error(async (error) => {
   console.error("Slack app error:", error);

@@ -83,15 +83,31 @@ commands
 chat:write
 channels:history
 groups:history
+files:read
+users:read
+im:history
+im:read
 ```
 
 Install the app to your workspace, then copy the bot user OAuth token into `.env` as `SLACK_BOT_TOKEN`.
+
+### 2b. Subscribe to DM messages (required for `/upload`)
+
+Under **Event Subscriptions** → **Subscribe to bot events**, add:
+
+```text
+message.im
+```
+
+Save and reinstall the app if prompted. This lets the bot receive the photo you send after `/upload`.
 
 ### 3. Copy Signing Secret
 
 Go to **Basic Information** and copy the app signing secret into `.env` as `SLACK_SIGNING_SECRET`.
 
-### 4. Create the `/recap` Slash Command
+### 4. Create Slash Commands
+
+#### `/recap`
 
 1. Go to **Slash Commands**.
 2. Click **Create New Command**.
@@ -103,16 +119,42 @@ Go to **Basic Information** and copy the app signing secret into `.env` as `SLAC
 
 In Socket Mode, Slack Bolt receives the command over the WebSocket connection, so the placeholder Request URL is not used for local development.
 
+#### `/upload`
+
+1. Create another slash command named `/upload`.
+2. Use the same placeholder Request URL as `/recap`.
+3. Description example: `Upload your yearly embarrassing photo`.
+
+**Usage** (DM with the bot only — not in channels)
+
+1. Open a direct message with the bot (profile → **Message**).
+2. Run `/upload`.
+3. Send your photo as the next message in that DM (drag in an image or use **+**).
+4. `/upload status` — list of who has uploaded (name, job title, dates, photo link).
+
+Role is read from each person's Slack **job title** (`profile.title`). If it's blank, the tracker shows `—`.
+
+If someone runs `/upload` in a channel, the bot replies with a private ephemeral note to use a DM instead.
+
+Uploads are stored locally in `data/blackmail.json` (gitignored). Each record has: name, role, `dateUploaded`, `blackmailPhoto` URL, and optional `dateReleased`.
+
 ## Project Structure
 
 ```text
-src/app.ts              # Creates and starts the Slack Bolt app.
-src/commands/recap.ts   # Handles the /recap slash command.
-src/services/           # Calls OpenRouter for recap summaries.
-src/utils/env.ts        # Validates required environment variables.
-src/types/              # Reserved for shared TypeScript types.
-.env.example            # Documents required local environment variables.
-.gitignore              # Keeps dependencies, secrets, and build output out of git.
-package.json            # Defines dependencies and npm scripts.
-tsconfig.json           # Configures the TypeScript compiler.
+src/app.ts                       # Creates and starts the Slack Bolt app.
+src/commands/recap.ts            # Handles the /recap slash command.
+src/commands/upload.ts           # Handles the /upload slash command.
+src/services/openrouter.ts       # Calls OpenRouter for recap summaries.
+src/services/blackmail-store.ts  # JSON persistence for upload records.
+src/services/pending-upload.ts   # In-memory upload session state.
+src/services/slack-user.ts       # Slack user display name helper.
+src/services/upload-photo.ts     # Saves uploaded photos to the store.
+src/utils/env.ts                 # Validates required environment variables.
+src/utils/slack-channel.ts       # DM channel detection helper.
+src/types/blackmail.ts           # Upload record types.
+data/blackmail.json              # Local upload tracker (created at runtime).
+.env.example                     # Documents required local environment variables.
+.gitignore                       # Keeps dependencies, secrets, and build output out of git.
+package.json                     # Defines dependencies and npm scripts.
+tsconfig.json                    # Configures the TypeScript compiler.
 ```
